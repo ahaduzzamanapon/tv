@@ -1,10 +1,11 @@
-// screens/home_screen.dart — Premium bottom nav
+// screens/home_screen.dart — 4-tab bottom nav with Series
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'live_screen.dart';
 import 'movies_screen.dart';
 import 'channels_screen.dart';
+import 'series_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,6 +18,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final _screens = const [
     MoviesScreen(),
+    SeriesScreen(),
     LiveScreen(),
     ChannelsScreen(),
   ];
@@ -38,9 +40,9 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF0F0F1A),
-        border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.07))),
+        border: Border(top: BorderSide(color: Colors.white.withOpacity(0.07))),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 24, offset: const Offset(0, -8)),
+          BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 24, offset: const Offset(0, -8)),
         ],
       ),
       child: SafeArea(
@@ -57,19 +59,27 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTap: () => setState(() => _idx = 0),
               ),
               _NavItem(
+                icon: Icons.tv_outlined,
+                activeIcon: Icons.tv_rounded,
+                label: 'Series',
+                active: _idx == 1,
+                onTap: () => setState(() => _idx = 1),
+                accentColor: const Color(0xFF6C63FF),
+              ),
+              _NavItem(
                 icon: Icons.sports_outlined,
                 activeIcon: Icons.sports,
                 label: 'Live',
-                active: _idx == 1,
-                onTap: () => setState(() => _idx = 1),
+                active: _idx == 2,
+                onTap: () => setState(() => _idx = 2),
                 showBadge: true,
               ),
               _NavItem(
-                icon: Icons.tv_outlined,
-                activeIcon: Icons.tv_rounded,
+                icon: Icons.cast_outlined,
+                activeIcon: Icons.cast_rounded,
                 label: 'Channels',
-                active: _idx == 2,
-                onTap: () => setState(() => _idx = 2),
+                active: _idx == 3,
+                onTap: () => setState(() => _idx = 3),
               ),
             ],
           ),
@@ -84,6 +94,7 @@ class _NavItem extends StatelessWidget {
   final String label;
   final bool active;
   final bool showBadge;
+  final Color accentColor;
   final VoidCallback onTap;
 
   const _NavItem({
@@ -92,7 +103,8 @@ class _NavItem extends StatelessWidget {
     required this.label,
     required this.active,
     required this.onTap,
-    this.showBadge = false,
+    this.showBadge  = false,
+    this.accentColor = const Color(0xFFE63946),
   });
 
   @override
@@ -101,20 +113,18 @@ class _NavItem extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
-        width: 90,
+        width: 80,
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          // Icon with indicator dot
           Stack(clipBehavior: Clip.none, children: [
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),
               child: Icon(
                 active ? activeIcon : icon,
                 key: ValueKey(active),
-                color: active ? const Color(0xFFE63946) : const Color(0xFF4A5568),
-                size: 26,
+                color: active ? accentColor : const Color(0xFF4A5568),
+                size: 24,
               ),
             ),
-            // Live badge
             if (showBadge) Positioned(
               top: -4, right: -8,
               child: Container(
@@ -129,21 +139,17 @@ class _NavItem extends StatelessWidget {
             ),
           ]),
           const SizedBox(height: 4),
-          Text(label,
-            style: GoogleFonts.inter(
-              fontSize: 11,
-              fontWeight: active ? FontWeight.w700 : FontWeight.w400,
-              color: active ? const Color(0xFFE63946) : const Color(0xFF4A5568),
-            ),
-          ),
+          Text(label, style: GoogleFonts.inter(
+            fontSize: 10,
+            fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+            color: active ? accentColor : const Color(0xFF4A5568),
+          )),
           const SizedBox(height: 2),
-          // Active indicator
           AnimatedContainer(
             duration: const Duration(milliseconds: 250),
-            height: 2,
-            width: active ? 20 : 0,
+            height: 2, width: active ? 18 : 0,
             decoration: BoxDecoration(
-              color: const Color(0xFFE63946),
+              color: accentColor,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
