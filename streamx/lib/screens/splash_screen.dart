@@ -171,54 +171,83 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(AppConfig.bgDark),
-      body: Center(
-        child: AnimatedBuilder(
-          animation: _ctrl,
-          builder: (_, __) => FadeTransition(
-            opacity: _fade,
-            child: ScaleTransition(
-              scale: _scale,
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                // Logo
-                Container(
-                  width: 100, height: 100,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFE63946), Color(0xFFF4A261)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+      backgroundColor: const Color(0xFF0A0A0F),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment.center,
+            radius: 1.2,
+            colors: [Color(0xFF1A0A0F), Color(0xFF0A0A0F)],
+          ),
+        ),
+        child: Center(
+          child: AnimatedBuilder(
+            animation: _ctrl,
+            builder: (_, __) => FadeTransition(
+              opacity: _fade,
+              child: ScaleTransition(
+                scale: _scale,
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+
+                  // ── ST Logo ──
+                  Container(
+                    width: 140, height: 140,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFE63946).withOpacity(0.35),
+                          blurRadius: 50, spreadRadius: 5,
+                        ),
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.4),
+                          blurRadius: 20,
+                        ),
+                      ],
                     ),
-                    borderRadius: BorderRadius.circular(28),
-                    boxShadow: [BoxShadow(
-                      color: const Color(0xFFE63946).withOpacity(0.4),
-                      blurRadius: 32, offset: const Offset(0, 12),
-                    )],
+                    child: ClipOval(
+                      child: Image.asset(
+                        'assets/images/logo.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
                   ),
-                  child: const Icon(Icons.play_circle_fill, size: 56, color: Colors.white),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  AppConfig.appName,
-                  style: GoogleFonts.inter(
-                    fontSize: 40, fontWeight: FontWeight.w900,
-                    color: Colors.white, letterSpacing: -2,
+                  const SizedBox(height: 28),
+
+                  // ── App Name ──
+                  Text(
+                    'StreamX',
+                    style: GoogleFonts.inter(
+                      fontSize: 42, fontWeight: FontWeight.w900,
+                      color: Colors.white, letterSpacing: -1.5,
+                      shadows: [
+                        Shadow(
+                          color: const Color(0xFFE63946).withOpacity(0.5),
+                          blurRadius: 20,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  AppConfig.tagLine,
-                  style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF7F8EA3), letterSpacing: 1),
-                ),
-                const SizedBox(height: 60),
-                SizedBox(
-                  width: 36, height: 36,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: const Color(0xFFE63946).withOpacity(0.7),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Movies • Live • TV Channels',
+                    style: GoogleFonts.inter(
+                      fontSize: 13, color: const Color(0xFF7F8EA3),
+                      letterSpacing: 1.2, fontWeight: FontWeight.w400,
+                    ),
                   ),
-                ),
-              ]),
+                  const SizedBox(height: 70),
+
+                  // ── Loader ──
+                  SizedBox(
+                    width: 32, height: 32,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: const Color(0xFFE63946).withOpacity(0.8),
+                    ),
+                  ),
+                ]),
+              ),
             ),
           ),
         ),
