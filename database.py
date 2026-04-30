@@ -216,7 +216,7 @@ def upsert_series(title, poster_url, group_name, language, source, total_seasons
                     INSERT INTO movies
                         (title, quality, stream_url, poster_url, group_name, language, source,
                          content_type, total_seasons, added_at, updated_at)
-                    VALUES (%s,'','',  %s, %s, %s, %s, 'series', %s, %s, %s)
+                    VALUES (%s, '', NULL, %s, %s, %s, %s, 'series', %s, %s, %s)
                 """, (title, poster_url, group_name, language, source, total_seasons, now(), now()))
                 conn.commit()
                 return cur.lastrowid

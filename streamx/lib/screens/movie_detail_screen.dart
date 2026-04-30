@@ -79,7 +79,14 @@ class MovieDetailScreen extends StatelessWidget {
                 icon: const Icon(Icons.play_arrow_rounded, size: 28),
                 label: Text('Watch Now', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700)),
                 onPressed: () => Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => PlayerScreen(title: movie.title, streamUrls: [movie.streamUrl], isMatch: false),
+                  builder: (_) => PlayerScreen(
+                    title: movie.title,
+                    streamUrls: [movie.streamUrl],
+                    isMatch: false,
+                    language: movie.language.isNotEmpty ? movie.language : null,
+                    quality:  movie.quality.isNotEmpty  ? movie.quality  : null,
+                    category: movie.groupName.isNotEmpty ? movie.groupName : null,
+                  ),
                 )),
               ),
             ),
@@ -98,7 +105,14 @@ class MovieDetailScreen extends StatelessWidget {
                 icon: const Icon(Icons.open_in_new, size: 18),
                 label: Text('External Player', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500)),
                 onPressed: () => Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => PlayerScreen(title: movie.title, streamUrls: [movie.streamUrl], isMatch: false),
+                  builder: (_) => PlayerScreen(
+                    title: movie.title,
+                    streamUrls: [movie.streamUrl],
+                    isMatch: false,
+                    language: movie.language.isNotEmpty ? movie.language : null,
+                    quality:  movie.quality.isNotEmpty  ? movie.quality  : null,
+                    category: movie.groupName.isNotEmpty ? movie.groupName : null,
+                  ),
                 )),
               ),
             ),
