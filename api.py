@@ -314,6 +314,15 @@ def get_movies():
         where  = "WHERE 1=1"
         params = []
 
+        # content_type filter: 'movie' by default (exclude series from movies list)
+        content_type = request.args.get("content_type", "movie").strip()
+        if content_type in ("movie", "series", "all"):
+            if content_type != "all":
+                where += " AND content_type = %s"
+                params.append(content_type)
+        else:
+            where += " AND content_type = 'movie'"
+
         if search:
             where += " AND title LIKE %s"
             params.append(f"%{search}%")
@@ -368,10 +377,103 @@ def get_movie_single(movie_id):
         return _error("Movie not found", 404)
     return _ok(dict(row))
 
+# ══════════════════════════════════════════════════
+#  📺 WEB SERIES
+# ══════════════════════════════════════════════════
 
-# ══════════════════════════════════════════════════
-#  📺 TV CHANNELS
-# ══════════════════════════════════════════════════
+@app.route("/api/v1/series")
+@require_api_key
+def get_series():
+    page, limit, offset = _page_params()
+    search   = request.args.get("search",   "").strip()
+    category = request.args.get("category", "").strip()
+    language = request.args.get("language", "").strip()
+    source   = request.args.get("source",   "").strip()
+    sort     = request.args.get("sort", "newest").strip()
+
+    sort_map = {"newest": "added_at DESC", "oldest": "added_at ASC",
+                "title_asc": "title ASC", "title_desc": "title DESC"}
+    order_by = sort_map.get(sort, "added_at DESC")
+
+    conn, cur = _cursor()
+    try:
+        where  = "WHERE content_type='series'"
+        params = []
+
+        if search:
+            where += " AND title LIKE %s"
+            params.append(f"%{search}%")
+        if category:
+            where += " AND group_name LIKE %s"
+            params.append(f"%{category}%")
+        if language:
+            where += " AND language LIKE %s"
+            params.append(f"%{language}%")
+        if source:
+            where += " AND source LIKE %s"
+            params.append(f"%{source}%")
+
+        cur.execute(f"SELECT COUNT(*) as cnt FROM movies {where}", params)
+        total = cur.fetchone()["cnt"]
+
+        cur.execute(f"SELECT * FROM movies {where} ORDER BY {order_by} LIMIT %s OFFSET %s",
+                    params + [limit, offset])
+        rows = cur.fetchall()
+
+        categories = _fetch_distinct(cur, "movies", "group_name")
+        languages  = _fetch_distinct(cur, "movies", "language")
+    finally:
+        cur.close()
+        conn.close()
+
+    return _ok(
+        [dict(r) for r in rows],
+        total=total, page=page, limit=limit,
+        total_pages=(total + limit - 1) // limit if total > 0 else 0,
+        available_filters={"categories": categories, "languages": languages}
+    )
+
+
+@app.route("/api/v1/series/<int:series_id>/episodes")
+@require_api_key
+def get_series_episodes(series_id):
+    season = request.args.get("season", "").strip()
+
+    conn, cur = _cursor()
+    try:
+        # Series info
+        cur.execute("SELECT * FROM movies WHERE id=%s AND content_type='series'", (series_id,))
+        series = cur.fetchone()
+        if not series:
+            return _error("Series not found", 404)
+
+        # Episodes
+        where  = "WHERE movie_id=%s"
+        params = [series_id]
+        if season:
+            where += " AND season_num=%s"
+            params.append(int(season))
+
+        cur.execute(f"SELECT * FROM series_episodes {where} ORDER BY season_num, episode_num", params)
+        episodes = cur.fetchall()
+
+        # Available seasons
+        cur.execute("SELECT DISTINCT season_num FROM series_episodes WHERE movie_id=%s ORDER BY season_num", (series_id,))
+        seasons = [r["season_num"] for r in cur.fetchall()]
+    finally:
+        cur.close()
+        conn.close()
+
+    return _ok(
+        [dict(e) for e in episodes],
+        series=dict(series),
+        total_episodes=len(episodes),
+        available_seasons=seasons,
+        current_season=int(season) if season else (seasons[0] if seasons else 1)
+    )
+
+
+
 
 @app.route("/api/v1/channels")
 @require_api_key

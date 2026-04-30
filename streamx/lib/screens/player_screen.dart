@@ -52,10 +52,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
         onPageFinished: (_) => setState(() => _loading = false),
         onWebResourceError: (_) => setState(() => _loading = false),
       ));
+    _loadStream(_selectedIdx);
+  }
 
-    final url = _currentUrl;
-    if (url.startsWith('<!DOCTYPE')) {
-      _wc.loadHtmlString(url);
+  void _loadStream(int idx) {
+    if (widget.streamUrls.isEmpty) {
+      _wc.loadHtmlString('<html><body style="background:#000;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-family:sans-serif"><p>কোনো Stream পাওয়া যায়নি</p></body></html>');
+      return;
+    }
+    final url = widget.streamUrls[idx].toString();
+    if (url.isEmpty || url == 'null') {
+      _wc.loadHtmlString('<html><body style="background:#000"></body></html>');
+      return;
+    }
+    if (url.contains('.m3u8') || url.contains('.mp4') || url.contains('.ts')) {
+      _wc.loadHtmlString(_buildHtmlPlayer(url));
     } else {
       _wc.loadRequest(Uri.parse(url));
     }
@@ -63,35 +74,45 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   String get _currentUrl {
     if (widget.streamUrls.isEmpty) return 'about:blank';
-    final url = widget.streamUrls[_selectedIdx].toString();
-    if (url.startsWith('http')) return url;
-    return 'about:blank';
+    return widget.streamUrls[_selectedIdx].toString();
   }
 
-  String _buildHtmlPlayer(String url) => '''
-<!DOCTYPE html>
+  String _buildHtmlPlayer(String url) => '''<!DOCTYPE html>
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<style>* { margin:0; padding:0; background:#000; } video { width:100vw; height:100vh; object-fit:contain; }</style>
+<style>
+  * { margin:0; padding:0; background:#000; }
+  video { width:100vw; height:100vh; object-fit:contain; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 <body>
-  <video controls autoplay playsinline>
-    <source src="$url">
-  </video>
+  <video id="v" controls autoplay playsinline></video>
+  <script>
+    var video = document.getElementById('v');
+    var src = "$url";
+    if (Hls.isSupported() && src.includes('.m3u8')) {
+      var hls = new Hls();
+      hls.loadSource(src);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, function() { video.play(); });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = src;
+      video.play();
+    } else {
+      video.src = src;
+      video.play();
+    }
+  </script>
 </body>
 </html>''';
 
-
   void _switchStream(int idx) {
     setState(() { _selectedIdx = idx; _loading = true; });
-    final url = widget.streamUrls[idx].toString();
-    if (url.contains('.m3u8') || url.contains('.mp4')) {
-      _wc.loadHtmlString(_buildHtmlPlayer(url));
-    } else {
-      _wc.loadRequest(Uri.parse(url));
-    }
+    _loadStream(idx);
   }
+
 
   @override
   Widget build(BuildContext context) {

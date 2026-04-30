@@ -1,6 +1,6 @@
 """
-scrapers/fibwatch.py — fibwatch.art Movie Scraper
-Category-based (Bengali Dubbed, Bangla) + Latest সেকশন — দুটোই একই ফাইলে
+scrapers/fibwatch.py — fibwatch.art Full Scraper
+All categories (Bengali, Hindi, English, Tamil, etc.) — cloudscraper Cloudflare bypass
 """
 
 import cloudscraper
@@ -11,6 +11,22 @@ from database import upsert_movie
 
 BASE_URL = "https://fibwatch.art"
 SOURCE = "fibwatch.art"
+
+# সব available categories — cat_id: (group_name, language)
+ALL_CATEGORIES = {
+    "1":  ("Bengali Dubbed",    "Bengali"),
+    "2":  ("Bangla Movie",      "Bangla"),
+    "3":  ("Hindi",             "Hindi"),
+    "4":  ("English",           "English"),
+    "5":  ("Tamil Dubbed",      "Tamil"),
+    "6":  ("Telugu Dubbed",     "Telugu"),
+    "7":  ("South Hindi",       "Hindi Dubbed"),
+    "8":  ("Animation",         "Multi"),
+    "9":  ("Korean",            "Korean"),
+    "10": ("Action",            "Multi"),
+    "11": ("Comedy",            "Multi"),
+    "12": ("Drama",             "Multi"),
+}
 
 
 def _make_scraper():
@@ -137,6 +153,19 @@ def run_category(cat_id: str, group_name: str, language: str, max_pages: int = 1
 
     print(f"\n  ✅ {saved} movies DB-তে save হয়েছে ({group_name}).")
     return saved
+
+
+def run_all_categories(max_pages: int = 50) -> int:
+    """সব fibwatch categories scrape করে"""
+    total = 0
+    for cat_id, (group, lang) in ALL_CATEGORIES.items():
+        try:
+            saved = run_category(cat_id, group, lang, max_pages=max_pages)
+            total += saved
+        except Exception as e:
+            print(f"  ⚠️ Category {cat_id} error: {e}")
+    print(f"\n✅ Fibwatch total saved: {total}")
+    return total
 
 
 # ──────────────────────────────────────────

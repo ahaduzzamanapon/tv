@@ -1,49 +1,102 @@
+#!/usr/bin/env python3
 """
-cron_movies.py — Movie Scraper Cron Script
-cPanel Cron-এ প্রতি 6 ঘন্টায় চালাতে হবে:
-  0 */6 * * * /usr/bin/python3 /home/USER/unified/cron_movies.py
+cron_movies.py — Unified Movie + Series Auto-Update Cron
+hdhub4u (সব category) + fibwatch.art (সব category) একসাথে চালায়
+
+Usage:
+  python3 cron_movies.py               # default: 3 pages hdhub + fibwatch latest
+  python3 cron_movies.py --pages 10    # 10 pages per category
+  python3 cron_movies.py --full        # full scan (20 pages)
+  python3 cron_movies.py --hdhub-only  # only hdhub4u
+  python3 cron_movies.py --fib-only    # only fibwatch
 """
-import sys, io, os
 
-if hasattr(sys.stdout, 'buffer'):
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-import database as db
-from scrapers import fibwatch, hdhub
+import sys
+import os
+import argparse
 from datetime import datetime
 
-FIBWATCH_CATEGORIES = [
-    {"cat_id": "852", "group_name": "Bengali Dubbed", "language": "Bengali Dubbed", "max_pages": 150},
-    {"cat_id": "1",   "group_name": "Bangla Movie",   "language": "Bangla",         "max_pages": 100},
-]
-FIBWATCH_LATEST_PAGES = 500
-HDHUB_MAX_PAGES       = 5
+# Path setup
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, BASE_DIR)
+
+import database as db
+
+def log(msg):
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{ts}] {msg}", flush=True)
+
+
+def run_hdhub(pages=3, categories=None):
+    log(f"🎬 HDHub4u scraping শুরু ({pages} pages/category)...")
+    try:
+        from scrapers.hdhub_full import run
+        saved = run(categories=categories, max_pages=pages, workers=8)
+        log(f"✅ HDHub4u: {saved} items saved")
+        return saved
+    except Exception as e:
+        log(f"❌ HDHub4u error: {e}")
+        import traceback
+        traceback.print_exc()
+        return 0
+
+
+def run_fibwatch(pages=50):
+    log(f"🎬 Fibwatch.art scraping শুরু ({pages} pages/category)...")
+    try:
+        from scrapers.fibwatch import run_all_categories, run_latest
+        saved = run_all_categories(max_pages=pages)
+        # Latest section also
+        saved += run_latest(max_pages=min(pages * 10, 200))
+        log(f"✅ Fibwatch: {saved} items saved")
+        return saved
+    except Exception as e:
+        log(f"❌ Fibwatch error: {e}")
+        import traceback
+        traceback.print_exc()
+        return 0
+
 
 def main():
-    print(f"[{datetime.now()}] Movie cron started...")
-    db.init_db()
+    parser = argparse.ArgumentParser(description="Media Hub Movies Cron")
+    parser.add_argument("--pages",      type=int, default=3,    help="Pages per category (default: 3)")
+    parser.add_argument("--full",       action="store_true",     help="Full scan (20 pages)")
+    parser.add_argument("--hdhub-only", action="store_true",     help="Only hdhub4u")
+    parser.add_argument("--fib-only",   action="store_true",     help="Only fibwatch")
+    parser.add_argument("--cats",       nargs="*",               help="HDHub4u category slugs")
+    args = parser.parse_args()
+
+    if args.full:
+        pages = 20
+    else:
+        pages = args.pages
+
+    log("=" * 60)
+    log("🚀 Media Hub Cron শুরু হচ্ছে...")
+    log(f"   Pages: {pages} | Full: {args.full}")
+    log("=" * 60)
+
+    # DB init
+    try:
+        db.init_db()
+        log("✅ Database initialized")
+    except Exception as e:
+        log(f"❌ DB init failed: {e}")
+        sys.exit(1)
+
     total = 0
 
-    for cat in FIBWATCH_CATEGORIES:
-        try:
-            total += fibwatch.run_category(**cat)
-        except Exception as e:
-            print(f"fibwatch category error: {e}")
+    if not args.fib_only:
+        total += run_hdhub(pages=pages, categories=args.cats)
 
-    try:
-        total += fibwatch.run_latest(max_pages=FIBWATCH_LATEST_PAGES, group_name="Fibwatch Latest", language="Multi")
-    except Exception as e:
-        print(f"fibwatch latest error: {e}")
+    if not args.hdhub_only:
+        total += run_fibwatch(pages=min(pages * 10, 100))
 
-    try:
-        total += hdhub.run(max_pages=HDHUB_MAX_PAGES)
-    except Exception as e:
-        print(f"hdhub error: {e}")
+    log("=" * 60)
+    log(f"🏁 Cron সম্পন্ন। Total saved: {total}")
+    log(f"   Movies: {db.count_movies()} | Series: {db.count_series()}")
+    log("=" * 60)
 
-    print(f"[{datetime.now()}] Done. Total {total} movies saved.")
 
 if __name__ == "__main__":
     main()

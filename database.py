@@ -77,20 +77,38 @@ def init_db():
     try:
         with conn.cursor() as cur:
 
-            # ── MOVIES ──
+            # ── MOVIES (movies + series main entries) ──
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS movies (
-                    id          INT AUTO_INCREMENT PRIMARY KEY,
-                    title       VARCHAR(500) NOT NULL,
-                    quality     VARCHAR(50)  DEFAULT '',
-                    stream_url  VARCHAR(700) NOT NULL,
-                    poster_url  TEXT,
-                    group_name  VARCHAR(200) DEFAULT '',
-                    language    VARCHAR(100) DEFAULT '',
-                    source      VARCHAR(200) NOT NULL,
-                    added_at    DATETIME     NOT NULL,
-                    updated_at  DATETIME     NOT NULL,
+                    id            INT AUTO_INCREMENT PRIMARY KEY,
+                    title         VARCHAR(500) NOT NULL,
+                    quality       VARCHAR(50)  DEFAULT '',
+                    stream_url    VARCHAR(700) NOT NULL DEFAULT '',
+                    poster_url    TEXT,
+                    group_name    VARCHAR(200) DEFAULT '',
+                    language      VARCHAR(100) DEFAULT '',
+                    source        VARCHAR(200) NOT NULL,
+                    content_type  ENUM('movie','series') DEFAULT 'movie',
+                    total_seasons INT          DEFAULT 0,
+                    added_at      DATETIME     NOT NULL,
+                    updated_at    DATETIME     NOT NULL,
                     UNIQUE KEY uq_stream_url (stream_url(500))
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """)
+
+            # ── SERIES EPISODES ──
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS series_episodes (
+                    id          INT AUTO_INCREMENT PRIMARY KEY,
+                    movie_id    INT NOT NULL,
+                    season_num  INT NOT NULL DEFAULT 1,
+                    episode_num INT NOT NULL DEFAULT 1,
+                    ep_title    VARCHAR(500) DEFAULT '',
+                    stream_url  TEXT,
+                    added_at    DATETIME DEFAULT NOW(),
+                    updated_at  DATETIME DEFAULT NOW(),
+                    FOREIGN KEY (movie_id) REFERENCES movies(id) ON DELETE CASCADE,
+                    UNIQUE KEY uq_ep (movie_id, season_num, episode_num)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             """)
 
@@ -144,25 +162,29 @@ def init_db():
 #  MOVIES
 # ══════════════════════════════════════════════════
 
-def upsert_movie(title, quality, stream_url, poster_url, group_name, language, source):
+def upsert_movie(title, quality, stream_url, poster_url, group_name, language, source,
+                 content_type='movie'):
     """Movie insert — stream_url duplicate হলে update করে"""
     conn = get_connection()
     try:
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO movies
-                    (title, quality, stream_url, poster_url, group_name, language, source, added_at, updated_at)
+                    (title, quality, stream_url, poster_url, group_name, language, source,
+                     content_type, added_at, updated_at)
                 VALUES
-                    (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
-                    title      = VALUES(title),
-                    quality    = VALUES(quality),
-                    poster_url = VALUES(poster_url),
-                    group_name = VALUES(group_name),
-                    language   = VALUES(language),
-                    source     = VALUES(source),
-                    updated_at = VALUES(updated_at)
-            """, (title, quality, stream_url, poster_url, group_name, language, source, now(), now()))
+                    title        = VALUES(title),
+                    quality      = VALUES(quality),
+                    poster_url   = VALUES(poster_url),
+                    group_name   = VALUES(group_name),
+                    language     = VALUES(language),
+                    source       = VALUES(source),
+                    content_type = VALUES(content_type),
+                    updated_at   = VALUES(updated_at)
+            """, (title, quality, stream_url, poster_url, group_name, language, source,
+                  content_type, now(), now()))
         conn.commit()
         return "upserted"
     except pymysql.Error as e:
@@ -172,8 +194,69 @@ def upsert_movie(title, quality, stream_url, poster_url, group_name, language, s
         conn.close()
 
 
+def upsert_series(title, poster_url, group_name, language, source, total_seasons=1):
+    """Series main entry insert/update — title+source দিয়ে unique"""
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            # Check if exists by title+source
+            cur.execute(
+                "SELECT id FROM movies WHERE title=%s AND source=%s AND content_type='series'",
+                (title, source)
+            )
+            row = cur.fetchone()
+            if row:
+                cur.execute("""
+                    UPDATE movies SET poster_url=%s, group_name=%s, language=%s,
+                    total_seasons=%s, updated_at=%s WHERE id=%s
+                """, (poster_url, group_name, language, total_seasons, now(), row['id']))
+                return row['id']
+            else:
+                cur.execute("""
+                    INSERT INTO movies
+                        (title, quality, stream_url, poster_url, group_name, language, source,
+                         content_type, total_seasons, added_at, updated_at)
+                    VALUES (%s,'','',  %s, %s, %s, %s, 'series', %s, %s, %s)
+                """, (title, poster_url, group_name, language, source, total_seasons, now(), now()))
+                conn.commit()
+                return cur.lastrowid
+    except pymysql.Error as e:
+        print(f"❌ upsert_series error: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def upsert_episode(movie_id, season_num, episode_num, ep_title, stream_url):
+    """Episode insert/update"""
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO series_episodes
+                    (movie_id, season_num, episode_num, ep_title, stream_url, added_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    ep_title   = VALUES(ep_title),
+                    stream_url = VALUES(stream_url),
+                    updated_at = VALUES(updated_at)
+            """, (movie_id, season_num, episode_num, ep_title, stream_url, now(), now()))
+        conn.commit()
+        return "upserted"
+    except pymysql.Error as e:
+        print(f"❌ upsert_episode error: {e}")
+        return "error"
+    finally:
+        conn.close()
+
+
 def count_movies():
-    row = _exec("SELECT COUNT(*) AS cnt FROM movies", fetchone=True)
+    row = _exec("SELECT COUNT(*) AS cnt FROM movies WHERE content_type='movie'", fetchone=True)
+    return row["cnt"] if row else 0
+
+
+def count_series():
+    row = _exec("SELECT COUNT(*) AS cnt FROM movies WHERE content_type='series'", fetchone=True)
     return row["cnt"] if row else 0
 
 
