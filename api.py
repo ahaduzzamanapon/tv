@@ -1,21 +1,17 @@
 """
 api.py — Media Hub Public REST API  v3.0
 ════════════════════════════════════════════════════════════
-Public App API — Movies, Live Matches, TV Channels, App Version
+MySQL-compatible version with PyMySQL DictCursor
 
-Authentication: X-API-Key header (সব /api/v1/* endpoint-এ)
+Authentication: api_key query param OR X-API-Key header
 App version check: /api/v1/app/version (auth লাগে না)
-Download page: / (HTML)
-
-cPanel-এ চালাতে passenger_wsgi.py ব্যবহার করুন।
 ════════════════════════════════════════════════════════════
 """
 
-import sys, io, os, json, secrets, sqlite3, argparse
+import sys, io, os, json, secrets, argparse
 from functools import wraps
 from datetime import datetime
 
-# Windows UTF-8 fix
 if hasattr(sys.stdout, 'buffer') and sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
@@ -24,7 +20,7 @@ from flask import Flask, jsonify, request, send_from_directory
 BASE_DIR         = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE_DIR)
 import database as db
-import pymysql
+import pymysql.cursors
 
 app = Flask(__name__, static_folder=None)
 app.config['JSON_SORT_KEYS'] = False
@@ -63,7 +59,7 @@ def require_api_key(f):
     def decorated(*args, **kwargs):
         key = request.headers.get("X-API-Key") or request.args.get("api_key")
         if not key:
-            return _error("API key missing. X-API-Key header দিন।", 401)
+            return _error("API key missing. X-API-Key header বা ?api_key= দিন।", 401)
         if key not in load_api_keys():
             return _error("Invalid API key.", 403)
         return f(*args, **kwargs)
@@ -74,9 +70,11 @@ def require_api_key(f):
 #  🛠️ HELPERS
 # ══════════════════════════════════════════════════
 
-def _conn():
-    """MySQL connection — DictCursor সহ"""
-    return db.get_connection()
+def _cursor():
+    """PyMySQL DictCursor — returns (conn, cur)"""
+    conn = db.get_connection()
+    cur  = conn.cursor(pymysql.cursors.DictCursor)
+    return conn, cur
 
 
 def _page_params():
@@ -97,15 +95,19 @@ def _error(msg, code=400):
 
 
 def _ver(v):
-    """'1.2.3' → (1,2,3) — packaging module ছাড়াই version compare"""
     try:
         return tuple(int(x) for x in str(v).strip().split('.'))
     except Exception:
         return (0, 0, 0)
 
 
+def _fetch_distinct(cur, table, col):
+    cur.execute(f"SELECT DISTINCT {col} FROM {table} WHERE {col} != '' AND {col} IS NOT NULL ORDER BY {col}")
+    return [r[col] for r in cur.fetchall()]
+
+
 # ══════════════════════════════════════════════════
-#  🌐 WELCOME PAGE (HTML Download Page)
+#  🌐 PAGES
 # ══════════════════════════════════════════════════
 
 @app.route("/")
@@ -122,37 +124,31 @@ def static_files(filename):
 
 
 # ══════════════════════════════════════════════════
-#  📱 APP VERSION CHECK — Auth লাগে না
+#  📱 APP VERSION CHECK
 # ══════════════════════════════════════════════════
 
 @app.route("/api/v1/app/version")
 def app_version():
-    """
-    App startup-এ প্রথমেই এই endpoint hit করবে।
-    Auth লাগে না — app install হওয়ার পরপরই call করতে হবে।
-
-    Query: ?v=1.0.0  (app-এর current version পাঠাও)
-
-    Response actions:
-      "none"     → সব ঠিক, চলো
-      "notify"   → নতুন version আছে, user-কে জানাও (optional)
-      "block"    → force update বা maintenance — app বন্ধ করো
-    """
     cfg = {}
     if os.path.exists(APP_VERSION_FILE):
         with open(APP_VERSION_FILE, "r", encoding="utf-8") as f:
             cfg = json.load(f)
 
     if not cfg:
-        return _ok({"action": "none", "status": "ok"})
+        return _ok({"action": "none", "status": "ok",
+                    "your_version": request.args.get("v", "?"),
+                    "latest_version": "1.0.0",
+                    "update_available": False, "update_message": "",
+                    "download_url": "", "play_store_url": "",
+                    "apk_size": "", "changelog": [],
+                    "support_url": "https://t.me/your_support"})
 
-    # Maintenance চেক
     if cfg.get("maintenance_mode", False):
         return _ok({
-            "action":       "block",
-            "status":       "maintenance",
-            "message":      cfg.get("maintenance_message", "সিস্টেম রক্ষণাবেক্ষণ চলছে।"),
-            "support_url":  cfg.get("support_url", ""),
+            "action":      "block",
+            "status":      "maintenance",
+            "message":     cfg.get("maintenance_message", "সিস্টেম রক্ষণাবেক্ষণ চলছে।"),
+            "support_url": cfg.get("support_url", ""),
         })
 
     app_v  = request.args.get("v", "0.0.0")
@@ -165,15 +161,15 @@ def app_version():
 
     if force_update:
         return _ok({
-            "action":          "block",
-            "status":          "update_required",
-            "message":         cfg.get("update_message", "আপডেট করুন।"),
-            "your_version":    app_v,
-            "latest_version":  curr_v,
-            "download_url":    cfg.get("download_url", ""),
-            "play_store_url":  cfg.get("play_store_url", ""),
-            "apk_size":        cfg.get("apk_size", ""),
-            "changelog":       cfg.get("changelog", []),
+            "action":         "block",
+            "status":         "update_required",
+            "message":        cfg.get("update_message", "আপডেট করুন।"),
+            "your_version":   app_v,
+            "latest_version": curr_v,
+            "download_url":   cfg.get("download_url", ""),
+            "play_store_url": cfg.get("play_store_url", ""),
+            "apk_size":       cfg.get("apk_size", ""),
+            "changelog":      cfg.get("changelog", []),
         })
 
     return _ok({
@@ -183,10 +179,10 @@ def app_version():
         "latest_version":  curr_v,
         "update_available": update_available,
         "update_message":  cfg.get("update_message", "") if update_available else "",
-        "download_url":    cfg.get("download_url", "") if update_available else "",
-        "play_store_url":  cfg.get("play_store_url", "") if update_available else "",
-        "apk_size":        cfg.get("apk_size", "") if update_available else "",
-        "changelog":       cfg.get("changelog", []) if update_available else [],
+        "download_url":    cfg.get("download_url", ""),
+        "play_store_url":  cfg.get("play_store_url", ""),
+        "apk_size":        cfg.get("apk_size", ""),
+        "changelog":       cfg.get("changelog", []),
         "support_url":     cfg.get("support_url", ""),
     })
 
@@ -194,7 +190,6 @@ def app_version():
 @app.route("/api/v1/app/version", methods=["PATCH"])
 @require_api_key
 def update_app_version():
-    """Admin — app_version.json update করে। যেকোনো field পাঠান।"""
     cfg = {}
     if os.path.exists(APP_VERSION_FILE):
         with open(APP_VERSION_FILE, "r", encoding="utf-8") as f:
@@ -215,58 +210,58 @@ def update_app_version():
 @app.route("/api/v1/live")
 @require_api_key
 def get_live():
-    """
-    Query: league, status (LIVE/Upcoming), team, search
-    """
     league = request.args.get("league", "").strip()
     status = request.args.get("status", "").strip()
     team   = request.args.get("team",   "").strip()
     search = request.args.get("search", "").strip()
 
-    conn   = _conn()
-    where  = "WHERE 1=1"
-    params = []
+    conn, cur = _cursor()
+    try:
+        where  = "WHERE 1=1"
+        params = []
 
-    if league:
-        where += " AND UPPER(league) LIKE ?"
-        params.append(f"%{league.upper()}%")
-    if status:
-        where += " AND UPPER(match_status) = ?"
-        params.append(status.upper())
-    if team:
-        where += " AND (team1 LIKE ? OR team2 LIKE ?)"
-        params.extend([f"%{team}%", f"%{team}%"])
-    if search:
-        where += " AND match_title LIKE ?"
-        params.append(f"%{search}%")
+        if league:
+            where += " AND UPPER(league) LIKE %s"
+            params.append(f"%{league.upper()}%")
+        if status:
+            where += " AND UPPER(match_status) = %s"
+            params.append(status.upper())
+        if team:
+            where += " AND (team1 LIKE %s OR team2 LIKE %s)"
+            params.extend([f"%{team}%", f"%{team}%"])
+        if search:
+            where += " AND match_title LIKE %s"
+            params.append(f"%{search}%")
 
-    order = "ORDER BY CASE WHEN UPPER(match_status)='LIVE' THEN 0 ELSE 1 END, start_time_bd"
-    rows  = conn.execute(f"SELECT * FROM live_matches {where} {order}", params).fetchall()
-    total = conn.execute(f"SELECT COUNT(*) FROM live_matches {where}", params).fetchone()[0]
+        order = "ORDER BY CASE WHEN UPPER(match_status)='LIVE' THEN 0 ELSE 1 END, start_time_bd"
+        cur.execute(f"SELECT * FROM live_matches {where} {order}", params)
+        rows = cur.fetchall()
 
-    # Filter dropdowns
-    leagues   = [r[0] for r in conn.execute("SELECT DISTINCT league FROM live_matches WHERE league!='' ORDER BY league").fetchall()]
-    statuses  = [r[0] for r in conn.execute("SELECT DISTINCT match_status FROM live_matches ORDER BY match_status").fetchall()]
-    conn.close()
+        cur.execute(f"SELECT COUNT(*) as cnt FROM live_matches {where}", params)
+        total = cur.fetchone()["cnt"]
+
+        leagues  = _fetch_distinct(cur, "live_matches", "league")
+        statuses = _fetch_distinct(cur, "live_matches", "match_status")
+    finally:
+        cur.close()
+        conn.close()
 
     matches = []
     for r in rows:
         m = dict(r)
         try:
-            m["stream_urls"] = json.loads(m["stream_urls"])
+            m["stream_urls"] = json.loads(m["stream_urls"]) if m.get("stream_urls") else []
         except Exception:
             m["stream_urls"] = []
         matches.append(m)
 
-    live_count     = sum(1 for m in matches if m["match_status"].upper() == "LIVE")
+    live_count     = sum(1 for m in matches if str(m.get("match_status","")).upper() == "LIVE")
     upcoming_count = len(matches) - live_count
 
     return _ok(matches,
         total=total,
         live_count=live_count,
         upcoming_count=upcoming_count,
-        filters_applied={"league": league or None, "status": status or None,
-                         "team": team or None, "search": search or None},
         available_filters={"leagues": leagues, "statuses": statuses}
     )
 
@@ -274,14 +269,18 @@ def get_live():
 @app.route("/api/v1/live/<int:match_id>")
 @require_api_key
 def get_live_single(match_id):
-    conn = _conn()
-    row  = conn.execute("SELECT * FROM live_matches WHERE id=?", (match_id,)).fetchone()
-    conn.close()
+    conn, cur = _cursor()
+    try:
+        cur.execute("SELECT * FROM live_matches WHERE id=%s", (match_id,))
+        row = cur.fetchone()
+    finally:
+        cur.close()
+        conn.close()
     if not row:
         return _error("Match not found", 404)
     m = dict(row)
     try:
-        m["stream_urls"] = json.loads(m["stream_urls"])
+        m["stream_urls"] = json.loads(m["stream_urls"]) if m.get("stream_urls") else []
     except Exception:
         m["stream_urls"] = []
     return _ok(m)
@@ -294,10 +293,6 @@ def get_live_single(match_id):
 @app.route("/api/v1/movies")
 @require_api_key
 def get_movies():
-    """
-    Query: search, category (group_name), language, quality, source
-           sort (newest/oldest/title_asc/title_desc), page, limit
-    """
     page, limit, offset = _page_params()
     search   = request.args.get("search",   "").strip()
     category = request.args.get("category", "").strip()
@@ -309,50 +304,50 @@ def get_movies():
     sort_map = {
         "newest":     "added_at DESC",
         "oldest":     "added_at ASC",
-        "title_asc":  "title COLLATE NOCASE ASC",
-        "title_desc": "title COLLATE NOCASE DESC",
+        "title_asc":  "title ASC",
+        "title_desc": "title DESC",
     }
     order_by = sort_map.get(sort, "added_at DESC")
 
-    conn   = _conn()
-    where  = "WHERE 1=1"
-    params = []
+    conn, cur = _cursor()
+    try:
+        where  = "WHERE 1=1"
+        params = []
 
-    if search:
-        where += " AND title LIKE ?"
-        params.append(f"%{search}%")
-    if category:
-        where += " AND group_name LIKE ?"
-        params.append(f"%{category}%")
-    if language:
-        where += " AND language LIKE ?"
-        params.append(f"%{language}%")
-    if quality:
-        where += " AND quality LIKE ?"
-        params.append(f"%{quality}%")
-    if source:
-        where += " AND source LIKE ?"
-        params.append(f"%{source}%")
+        if search:
+            where += " AND title LIKE %s"
+            params.append(f"%{search}%")
+        if category:
+            where += " AND group_name LIKE %s"
+            params.append(f"%{category}%")
+        if language:
+            where += " AND language LIKE %s"
+            params.append(f"%{language}%")
+        if quality:
+            where += " AND quality LIKE %s"
+            params.append(f"%{quality}%")
+        if source:
+            where += " AND source LIKE %s"
+            params.append(f"%{source}%")
 
-    total = conn.execute(f"SELECT COUNT(*) FROM movies {where}", params).fetchone()[0]
-    rows  = conn.execute(f"SELECT * FROM movies {where} ORDER BY {order_by} LIMIT ? OFFSET ?",
-                         params + [limit, offset]).fetchall()
+        cur.execute(f"SELECT COUNT(*) as cnt FROM movies {where}", params)
+        total = cur.fetchone()["cnt"]
 
-    # Filter dropdowns
-    categories = [r[0] for r in conn.execute("SELECT DISTINCT group_name FROM movies WHERE group_name!='' ORDER BY group_name").fetchall()]
-    languages  = [r[0] for r in conn.execute("SELECT DISTINCT language FROM movies WHERE language!='' ORDER BY language").fetchall()]
-    qualities  = [r[0] for r in conn.execute("SELECT DISTINCT quality FROM movies WHERE quality!='' ORDER BY quality").fetchall()]
-    conn.close()
+        cur.execute(f"SELECT * FROM movies {where} ORDER BY {order_by} LIMIT %s OFFSET %s",
+                    params + [limit, offset])
+        rows = cur.fetchall()
+
+        categories = _fetch_distinct(cur, "movies", "group_name")
+        languages  = _fetch_distinct(cur, "movies", "language")
+        qualities  = _fetch_distinct(cur, "movies", "quality")
+    finally:
+        cur.close()
+        conn.close()
 
     return _ok(
         [dict(r) for r in rows],
-        total=total,
-        page=page,
-        limit=limit,
+        total=total, page=page, limit=limit,
         total_pages=(total + limit - 1) // limit if total > 0 else 0,
-        filters_applied={"search": search or None, "category": category or None,
-                         "language": language or None, "quality": quality or None,
-                         "source": source or None, "sort": sort},
         available_filters={"categories": categories, "languages": languages,
                            "qualities": qualities,
                            "sort_options": ["newest", "oldest", "title_asc", "title_desc"]}
@@ -362,9 +357,13 @@ def get_movies():
 @app.route("/api/v1/movies/<int:movie_id>")
 @require_api_key
 def get_movie_single(movie_id):
-    conn = _conn()
-    row  = conn.execute("SELECT * FROM movies WHERE id=?", (movie_id,)).fetchone()
-    conn.close()
+    conn, cur = _cursor()
+    try:
+        cur.execute("SELECT * FROM movies WHERE id=%s", (movie_id,))
+        row = cur.fetchone()
+    finally:
+        cur.close()
+        conn.close()
     if not row:
         return _error("Movie not found", 404)
     return _ok(dict(row))
@@ -377,10 +376,6 @@ def get_movie_single(movie_id):
 @app.route("/api/v1/channels")
 @require_api_key
 def get_channels():
-    """
-    Query: group (SPORTS/NEWS/BANGLA TV/MOVIES/OTHERS), search, source
-           sort (name_asc/name_desc/group_asc), page, limit
-    """
     page, limit, offset = _page_params()
     group  = request.args.get("group",  "").strip().upper()
     search = request.args.get("search", "").strip()
@@ -388,51 +383,57 @@ def get_channels():
     sort   = request.args.get("sort",   "group_asc").strip()
 
     sort_map = {
-        "name_asc":  "channel_name COLLATE NOCASE ASC",
-        "name_desc": "channel_name COLLATE NOCASE DESC",
+        "name_asc":  "channel_name ASC",
+        "name_desc": "channel_name DESC",
         "group_asc": "group_name ASC, channel_name ASC",
     }
     order_by = sort_map.get(sort, "group_name ASC, channel_name ASC")
 
-    conn   = _conn()
-    where  = "WHERE 1=1"
-    params = []
+    conn, cur = _cursor()
+    try:
+        where  = "WHERE 1=1"
+        params = []
 
-    if group:
-        where += " AND UPPER(group_name) = ?"
-        params.append(group)
-    if search:
-        where += " AND channel_name LIKE ?"
-        params.append(f"%{search}%")
-    if source:
-        where += " AND source LIKE ?"
-        params.append(f"%{source}%")
+        if group:
+            where += " AND UPPER(group_name) = %s"
+            params.append(group)
+        if search:
+            where += " AND channel_name LIKE %s"
+            params.append(f"%{search}%")
+        if source:
+            where += " AND source LIKE %s"
+            params.append(f"%{source}%")
 
-    total = conn.execute(f"SELECT COUNT(*) FROM tv_channels {where}", params).fetchone()[0]
-    rows  = conn.execute(f"SELECT * FROM tv_channels {where} ORDER BY {order_by} LIMIT ? OFFSET ?",
-                         params + [limit, offset]).fetchall()
+        cur.execute(f"SELECT COUNT(*) as cnt FROM tv_channels {where}", params)
+        total = cur.fetchone()["cnt"]
 
-    # Filter dropdowns
-    groups = [r[0] for r in conn.execute("SELECT DISTINCT group_name FROM tv_channels WHERE group_name!='' ORDER BY group_name").fetchall()]
-    conn.close()
+        cur.execute(f"SELECT * FROM tv_channels {where} ORDER BY {order_by} LIMIT %s OFFSET %s",
+                    params + [limit, offset])
+        rows = cur.fetchall()
+
+        groups = _fetch_distinct(cur, "tv_channels", "group_name")
+    finally:
+        cur.close()
+        conn.close()
 
     return _ok(
         [dict(r) for r in rows],
-        total=total,
-        page=page,
-        limit=limit,
+        total=total, page=page, limit=limit,
         total_pages=(total + limit - 1) // limit if total > 0 else 0,
-        filters_applied={"group": group or None, "search": search or None, "source": source or None},
-        available_filters={"groups": groups, "sort_options": ["name_asc", "name_desc", "group_asc"]}
+        available_filters={"groups": groups}
     )
 
 
 @app.route("/api/v1/channels/<int:channel_id>")
 @require_api_key
 def get_channel_single(channel_id):
-    conn = _conn()
-    row  = conn.execute("SELECT * FROM tv_channels WHERE id=?", (channel_id,)).fetchone()
-    conn.close()
+    conn, cur = _cursor()
+    try:
+        cur.execute("SELECT * FROM tv_channels WHERE id=%s", (channel_id,))
+        row = cur.fetchone()
+    finally:
+        cur.close()
+        conn.close()
     if not row:
         return _error("Channel not found", 404)
     return _ok(dict(row))
@@ -456,7 +457,7 @@ def server_error(e):
 
 
 # ══════════════════════════════════════════════════
-#  🚀 STARTUP (direct run)
+#  🚀 STARTUP
 # ══════════════════════════════════════════════════
 
 if __name__ == "__main__":
@@ -465,23 +466,7 @@ if __name__ == "__main__":
     parser.add_argument("--host",  type=str, default="0.0.0.0")
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
-
     db.init_db()
     api_key = generate_default_key()
-
-    print(f"""
-╔══════════════════════════════════════════════════════════════╗
-║          🎬  MEDIA HUB PUBLIC API  v3.0                      ║
-╠══════════════════════════════════════════════════════════════╣
-║  URL     : http://{args.host}:{args.port}
-║  API Key : {api_key}
-╠══════════════════════════════════════════════════════════════╣
-║  GET  /                        Download page (HTML)          ║
-║  GET  /api/v1/app/version      App version check (no auth)   ║
-║  PATCH /api/v1/app/version     Update version (auth req.)    ║
-║  GET  /api/v1/live             Live matches                  ║
-║  GET  /api/v1/movies           Movies                        ║
-║  GET  /api/v1/channels         TV Channels                   ║
-╚══════════════════════════════════════════════════════════════╝
-""")
+    print(f"\n🎬 Media Hub API v3.0\n  URL: http://{args.host}:{args.port}\n  Key: {api_key}\n")
     app.run(host=args.host, port=args.port, debug=args.debug)
