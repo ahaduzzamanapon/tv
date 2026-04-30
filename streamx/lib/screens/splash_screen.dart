@@ -209,6 +209,22 @@ class _SplashScreenState extends State<SplashScreen>
                       child: Image.asset(
                         'assets/images/logo.png',
                         fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 140, height: 140,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              colors: [Color(0xFFE63946), Color(0xFF7C3AED)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                          ),
+                          child: const Center(
+                            child: Text('ST', style: TextStyle(
+                              color: Colors.white, fontSize: 48,
+                              fontWeight: FontWeight.w900, letterSpacing: -2)),
+                          ),
+                        ),
                       ),
                     ),
                   ),

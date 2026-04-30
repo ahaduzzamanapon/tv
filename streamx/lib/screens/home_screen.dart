@@ -1,4 +1,5 @@
-// screens/home_screen.dart — 4-tab bottom nav with Series
+// screens/home_screen.dart — Premium glassmorphism bottom nav
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -13,8 +14,9 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _idx = 0;
+  late AnimationController _navAnim;
 
   final _screens = const [
     MoviesScreen(),
@@ -22,6 +24,22 @@ class _HomeScreenState extends State<HomeScreen> {
     LiveScreen(),
     ChannelsScreen(),
   ];
+
+  final _navItems = const [
+    _NavData(Icons.movie_outlined,  Icons.movie_rounded,   'Movies',   Color(0xFFE63946)),
+    _NavData(Icons.tv_outlined,     Icons.smart_display,   'Series',   Color(0xFF7C3AED)),
+    _NavData(Icons.sports_outlined, Icons.sports,          'Live',     Color(0xFF00D4AA)),
+    _NavData(Icons.cast_outlined,   Icons.cast_rounded,    'Channels', Color(0xFFFF9500)),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _navAnim = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
+  }
+
+  @override
+  void dispose() { _navAnim.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
@@ -31,130 +49,88 @@ class _HomeScreenState extends State<HomeScreen> {
     ));
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0F),
+      extendBody: true,
       body: IndexedStack(index: _idx, children: _screens),
-      bottomNavigationBar: _buildBottomNav(),
+      bottomNavigationBar: _buildGlassNav(),
     );
   }
 
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF0F0F1A),
-        border: Border(top: BorderSide(color: Colors.white.withOpacity(0.07))),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 24, offset: const Offset(0, -8)),
-        ],
-      ),
-      child: SafeArea(
-        child: SizedBox(
-          height: 62,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _NavItem(
-                icon: Icons.movie_outlined,
-                activeIcon: Icons.movie_rounded,
-                label: 'Movies',
-                active: _idx == 0,
-                onTap: () => setState(() => _idx = 0),
+  Widget _buildGlassNav() {
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F0F1A).withOpacity(0.85),
+            border: Border(top: BorderSide(color: Colors.white.withOpacity(0.08), width: 0.5)),
+          ),
+          child: SafeArea(
+            child: SizedBox(
+              height: 64,
+              child: Row(
+                children: List.generate(_navItems.length, (i) => Expanded(
+                  child: _buildNavBtn(i),
+                )),
               ),
-              _NavItem(
-                icon: Icons.tv_outlined,
-                activeIcon: Icons.tv_rounded,
-                label: 'Series',
-                active: _idx == 1,
-                onTap: () => setState(() => _idx = 1),
-                accentColor: const Color(0xFF6C63FF),
-              ),
-              _NavItem(
-                icon: Icons.sports_outlined,
-                activeIcon: Icons.sports,
-                label: 'Live',
-                active: _idx == 2,
-                onTap: () => setState(() => _idx = 2),
-                showBadge: true,
-              ),
-              _NavItem(
-                icon: Icons.cast_outlined,
-                activeIcon: Icons.cast_rounded,
-                label: 'Channels',
-                active: _idx == 3,
-                onTap: () => setState(() => _idx = 3),
-              ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
-}
 
-class _NavItem extends StatelessWidget {
-  final IconData icon, activeIcon;
-  final String label;
-  final bool active;
-  final bool showBadge;
-  final Color accentColor;
-  final VoidCallback onTap;
-
-  const _NavItem({
-    required this.icon,
-    required this.activeIcon,
-    required this.label,
-    required this.active,
-    required this.onTap,
-    this.showBadge  = false,
-    this.accentColor = const Color(0xFFE63946),
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildNavBtn(int i) {
+    final item   = _navItems[i];
+    final active = _idx == i;
     return GestureDetector(
-      onTap: onTap,
+      onTap: () => setState(() => _idx = i),
       behavior: HitTestBehavior.opaque,
-      child: SizedBox(
-        width: 80,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Stack(clipBehavior: Clip.none, children: [
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: Icon(
-                active ? activeIcon : icon,
-                key: ValueKey(active),
-                color: active ? accentColor : const Color(0xFF4A5568),
-                size: 24,
-              ),
-            ),
-            if (showBadge) Positioned(
-              top: -4, right: -8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE63946),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text('LIVE', style: GoogleFonts.inter(
-                    fontSize: 7, color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: 0.3)),
-              ),
-            ),
-          ]),
-          const SizedBox(height: 4),
-          Text(label, style: GoogleFonts.inter(
-            fontSize: 10,
-            fontWeight: active ? FontWeight.w700 : FontWeight.w400,
-            color: active ? accentColor : const Color(0xFF4A5568),
-          )),
-          const SizedBox(height: 2),
+          // Icon with glow
           AnimatedContainer(
             duration: const Duration(milliseconds: 250),
-            height: 2, width: active ? 18 : 0,
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: accentColor,
-              borderRadius: BorderRadius.circular(2),
+              color: active ? item.color.withOpacity(0.15) : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: active ? [BoxShadow(color: item.color.withOpacity(0.3), blurRadius: 12)] : [],
             ),
+            child: Stack(clipBehavior: Clip.none, children: [
+              Icon(
+                active ? item.activeIcon : item.icon,
+                color: active ? item.color : const Color(0xFF4A5568),
+                size: 22,
+              ),
+              if (i == 2) Positioned(top: -4, right: -6,
+                child: Container(
+                  width: 7, height: 7,
+                  decoration: const BoxDecoration(color: Color(0xFFE63946), shape: BoxShape.circle),
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 2),
+          AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 250),
+            style: GoogleFonts.inter(
+              fontSize: active ? 10.5 : 10,
+              fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+              color: active ? item.color : const Color(0xFF4A5568),
+            ),
+            child: Text(item.label),
           ),
         ]),
       ),
     );
   }
+}
+
+class _NavData {
+  final IconData icon, activeIcon;
+  final String label;
+  final Color color;
+  const _NavData(this.icon, this.activeIcon, this.label, this.color);
 }
