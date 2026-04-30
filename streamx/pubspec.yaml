@@ -1,0 +1,47 @@
+name: streamx
+description: "StreamX — Movies, Live Sports & TV Channels"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # HTTP & API
+  http: ^1.2.2
+
+  # Images
+  cached_network_image: ^3.4.1
+
+  # Fonts
+  google_fonts: ^6.2.1
+
+  # Loading shimmer
+  shimmer: ^3.0.0
+
+  # App version info (for update check)
+  package_info_plus: ^8.1.2
+
+  # URL launcher (download APK)
+  url_launcher: ^6.3.1
+
+  # WebView (video player)
+  webview_flutter: ^4.10.0
+
+  # Shared preferences (store API key)
+  shared_preferences: ^2.3.3
+
+  # Connectivity check
+  connectivity_plus: ^6.1.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

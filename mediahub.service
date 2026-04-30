@@ -1,0 +1,42 @@
+[Unit]
+Description=Media Hub Auto Scraper (Movies + Live Matches + TV Channels)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/unified
+ExecStart=/usr/bin/python3 /root/unified/main.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/root/unified/mediahub.log
+StandardError=append:/root/unified/mediahub.log
+
+[Install]
+WantedBy=multi-user.target
+
+# ═══════════════════════════════════════════════════════
+# ⚙️  Setup করার কমান্ড (server-এ একবার চালাতে হবে):
+#
+#  1. এই ফাইলটা copy করো:
+#     sudo cp mediahub.service /etc/systemd/system/
+#
+#  2. Systemd reload করো:
+#     sudo systemctl daemon-reload
+#
+#  3. Service চালু করো:
+#     sudo systemctl start mediahub
+#
+#  4. Server restart হলেও auto চালু হবে:
+#     sudo systemctl enable mediahub
+#
+#  5. Status দেখো:
+#     sudo systemctl status mediahub
+#
+#  6. Live log দেখো:
+#     tail -f /root/unified/mediahub.log
+#
+#  7. বন্ধ করো:
+#     sudo systemctl stop mediahub
+# ═══════════════════════════════════════════════════════

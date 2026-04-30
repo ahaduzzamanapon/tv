@@ -1,0 +1,386 @@
+{
+  "info": {
+    "name": "Media Hub API v3",
+    "description": "Media Hub Public REST API\n\n**Setup:**\n1. `api_key` variable-এ আপনার key দিন (`api_keys.txt` থেকে)\n2. `base_url` variable-এ server address দিন\n\n**Note:** `/api/v1/app/version` — auth লাগে না (app startup check)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:5000", "type": "string" },
+    { "key": "api_key",  "value": "YOUR_API_KEY_HERE",    "type": "string", "description": "api_keys.txt থেকে নিন" }
+  ],
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      { "key": "key",   "value": "X-API-Key", "type": "string" },
+      { "key": "value", "value": "{{api_key}}", "type": "string" },
+      { "key": "in",    "value": "header",     "type": "string" }
+    ]
+  },
+  "item": [
+
+    {
+      "name": "📱 App Version",
+      "item": [
+        {
+          "name": "Check Version (No Auth)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/app/version?v=1.0.0",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","app","version"],
+              "query": [{ "key": "v", "value": "1.0.0", "description": "App-এর current version" }]
+            },
+            "description": "App startup-এ প্রথমেই call করুন। Auth লাগে না।\n\n**Response action:**\n- `none` → চলতে দাও\n- `notify` → নতুন version আছে, user-কে জানাও\n- `block` → force update বা maintenance — app বন্ধ করো"
+          }
+        },
+        {
+          "name": "Check Version — Old App (Force Update)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/app/version?v=0.0.1",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","app","version"],
+              "query": [{ "key": "v", "value": "0.0.1" }]
+            },
+            "description": "পুরানো version দিলে force_update response আসে"
+          }
+        },
+        {
+          "name": "Update Version Config (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current_version\": \"1.1.0\",\n  \"min_required_version\": \"1.1.0\",\n  \"force_update\": true,\n  \"download_url\": \"https://yourserver.com/app/mediahub-v1.1.0.apk\",\n  \"apk_size\": \"28 MB\",\n  \"changelog\": [\"Bug fixes\", \"নতুন UI\", \"Faster loading\"],\n  \"update_message\": \"নতুন আপডেট পাওয়া গেছে! এখনই আপডেট করুন।\",\n  \"maintenance_mode\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/app/version",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","app","version"]
+            },
+            "description": "Admin only — X-API-Key header required.\napp_version.json update হবে।"
+          }
+        },
+        {
+          "name": "Enable Maintenance Mode (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"maintenance_mode\": true,\n  \"maintenance_message\": \"সিস্টেম আপগ্রেড চলছে। ৩০ মিনিট পরে আবার চেষ্টা করুন।\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/app/version",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","app","version"]
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "🔴 Live Matches",
+      "item": [
+        {
+          "name": "All Matches (Live + Upcoming)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/live",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","live"]
+            },
+            "description": "Response-এ `available_filters.leagues` এবং `available_filters.statuses` দিয়ে filter dropdown populate করুন।"
+          }
+        },
+        {
+          "name": "Only LIVE Now",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/live?status=LIVE",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","live"],
+              "query": [{ "key": "status", "value": "LIVE" }]
+            }
+          }
+        },
+        {
+          "name": "Filter by League — Premier League",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/live?league=PREMIER LEAGUE",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","live"],
+              "query": [{ "key": "league", "value": "PREMIER LEAGUE" }]
+            }
+          }
+        },
+        {
+          "name": "Filter by League — NBA",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/live?league=NBA",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","live"],
+              "query": [{ "key": "league", "value": "NBA" }]
+            }
+          }
+        },
+        {
+          "name": "Filter by League — FIFA World Cup",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/live?league=FIFA WORLD CUP",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","live"],
+              "query": [{ "key": "league", "value": "FIFA WORLD CUP" }]
+            }
+          }
+        },
+        {
+          "name": "Search by Team Name",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/live?team=Arsenal",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","live"],
+              "query": [{ "key": "team", "value": "Arsenal" }]
+            }
+          }
+        },
+        {
+          "name": "Single Match by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/live/1",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","live","1"]
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "🎬 Movies",
+      "item": [
+        {
+          "name": "All Movies — Page 1",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/movies?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","movies"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "description": "Response-এ `available_filters.categories`, `available_filters.languages`, `available_filters.qualities` দিয়ে filter dropdown populate করুন।"
+          }
+        },
+        {
+          "name": "Filter — Bengali Dubbed",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/movies?category=Bengali Dubbed&page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","movies"],
+              "query": [
+                { "key": "category", "value": "Bengali Dubbed" },
+                { "key": "page", "value": "1" }, { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Filter — Bangla Movie",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/movies?category=Bangla Movie",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","movies"],
+              "query": [{ "key": "category", "value": "Bangla Movie" }]
+            }
+          }
+        },
+        {
+          "name": "Filter — Hindi Dubbed",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/movies?language=Hindi Dubbed",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","movies"],
+              "query": [{ "key": "language", "value": "Hindi Dubbed" }]
+            }
+          }
+        },
+        {
+          "name": "Filter — 1080p Quality",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/movies?quality=1080p",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","movies"],
+              "query": [{ "key": "quality", "value": "1080p" }]
+            }
+          }
+        },
+        {
+          "name": "Search by Title",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/movies?search=batman",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","movies"],
+              "query": [{ "key": "search", "value": "batman" }]
+            }
+          }
+        },
+        {
+          "name": "Sort — Title A-Z",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/movies?sort=title_asc",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","movies"],
+              "query": [{ "key": "sort", "value": "title_asc" }]
+            }
+          }
+        },
+        {
+          "name": "Multi Filter — Category + Language + Sort",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/movies?category=Bengali Dubbed&language=Bengali Dubbed&sort=newest&page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","movies"],
+              "query": [
+                { "key": "category", "value": "Bengali Dubbed" },
+                { "key": "language", "value": "Bengali Dubbed" },
+                { "key": "sort", "value": "newest" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Single Movie by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/movies/1",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","movies","1"]
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "📺 TV Channels",
+      "item": [
+        {
+          "name": "All Channels",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/channels?page=1&limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","channels"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "50" }
+              ]
+            },
+            "description": "Response-এ `available_filters.groups` দিয়ে group filter dropdown populate করুন।"
+          }
+        },
+        {
+          "name": "SPORTS Channels",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/channels?group=SPORTS",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","channels"],
+              "query": [{ "key": "group", "value": "SPORTS" }]
+            }
+          }
+        },
+        {
+          "name": "NEWS Channels",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/channels?group=NEWS",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","channels"],
+              "query": [{ "key": "group", "value": "NEWS" }]
+            }
+          }
+        },
+        {
+          "name": "BANGLA TV Channels",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/channels?group=BANGLA TV",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","channels"],
+              "query": [{ "key": "group", "value": "BANGLA TV" }]
+            }
+          }
+        },
+        {
+          "name": "Search Channel by Name",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/channels?search=ATN",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","channels"],
+              "query": [{ "key": "search", "value": "ATN" }]
+            }
+          }
+        },
+        {
+          "name": "Single Channel by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/v1/channels/1",
+              "host": ["{{base_url}}"],
+              "path": ["api","v1","channels","1"]
+            }
+          }
+        }
+      ]
+    }
+
+  ]
+}

@@ -1,0 +1,15 @@
+# Media Hub — Unified Auto Scraper + API Server
+# Requirements
+
+# Scraper dependencies
+cloudscraper>=1.2.71
+curl-cffi>=0.6.0
+beautifulsoup4>=4.12.0
+requests>=2.31.0
+Pillow>=10.0.0
+
+# API Server
+flask>=3.0.0
+
+# MySQL Driver
+pymysql>=1.1.0

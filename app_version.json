@@ -1,0 +1,22 @@
+{
+  "app_name": "Media Hub",
+  "current_version": "1.0.0",
+  "min_required_version": "1.0.0",
+  "force_update": false,
+  "download_url": "https://yourserver.com/app/mediahub-v1.0.0.apk",
+  "play_store_url": "",
+  "apk_size": "25 MB",
+  "release_date": "2026-04-30",
+  "changelog": [
+    "লাইভ স্পোর্টস ম্যাচ — NBA, NFL, Premier League, F1",
+    "হাজার হাজার মুভি — Bengali Dubbed, South Hindi",
+    "৩৩২+ টিভি চ্যানেল — Sports, News, Bangla TV",
+    "Auto-refresh লাইভ ম্যাচ",
+    "Category ও Language filter"
+  ],
+  "update_message": "নতুন আপডেট পাওয়া গেছে! নতুন ফিচার ও bug fix সহ আপডেট করুন।",
+  "maintenance_mode": false,
+  "maintenance_message": "সিস্টেম রক্ষণাবেক্ষণ চলছে। কিছুক্ষণ পরে আবার চেষ্টা করুন।",
+  "support_url": "https://t.me/your_support",
+  "website_url": "https://yourserver.com"
+}
